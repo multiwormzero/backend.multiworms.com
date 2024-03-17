@@ -38,7 +38,7 @@ const tokenURIABI = [
     }
 ];
 
-const tokenContract = "0x4551c11b22fdd733a0328c62d6ef4e4c6496dada";
+const tokenContract = "0x4551C11B22FDd733A0328c62d6eF4e4C6496DadA";
 const mintSize = 3333;
 const firstTokenNumber = 0;
 const bucketName = 'com.multiworms.nftstore';
@@ -168,7 +168,7 @@ async function getNFTImage(contractId, contractABI, tokenId, s3Bucket, s3Namespa
 }
 
 async function getAllImages (tokenArray, s3Array) {
-    const limit = pLimit(100);
+    const limit = pLimit(5);
     const input = [];
 
     for (let i = 0; i < tokenArray.length; i++) {

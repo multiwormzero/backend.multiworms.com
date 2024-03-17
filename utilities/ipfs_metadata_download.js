@@ -18,7 +18,7 @@ const s3Client = new S3Client({ region: 'us-east-2' });
 
 const tokenURIABI = erc721ABI;
 
-const tokenContract = "0x4551c11b22fdd733a0328c62d6ef4e4c6496dada";
+const tokenContract = "0x4551C11B22FDd733A0328c62d6eF4e4C6496DadA";
 const mintSize = 3333;
 const firstTokenNumber = 0;
 const bucketName = 'com.multiworms.nftstore';

@@ -5,7 +5,7 @@ import pLimit from 'p-limit';
 
 
 const web3 = new Web3('https://rpc.mtv.ac');
-const contractId = "0x4551c11b22fdd733a0328c62d6ef4e4c6496dada";
+const contractId = "0x4551C11B22FDd733A0328c62d6eF4e4C6496DadA";
 import { erc721ABI } from '../utilities/defaultABI.js';
 const contractABI = erc721ABI;
 

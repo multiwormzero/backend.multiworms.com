@@ -1,63 +1,52 @@
 import Web3 from 'web3';
 import { createHash } from 'crypto';
-import { DynamoDBClient, PutItemCommand } from "@aws-sdk/client-dynamodb"; // ES Modules import
+import { DynamoDBClient, PutItemCommand, ScanCommand } from "@aws-sdk/client-dynamodb"; // ES Modules import
+import { S3Client, GetObjectCommand} from '@aws-sdk/client-s3';
 import pLimit from 'p-limit';
-
-
-const web3 = new Web3('https://rpc.mtv.ac');
-const contractId = "0x4551C11B22FDd733A0328c62d6eF4e4C6496DadA";
 import { erc721ABI } from '../utilities/defaultABI.js';
+
+const s3Client = new S3Client({ region: 'us-east-2' });
+const web3 = new Web3('https://rpc.mtv.ac');
+const contractId = "0xd162D3fB9F9F6F59592C62676E1771b96dF5A01e";
 const contractABI = erc721ABI;
+const bucketName = 'com.multiworms.nftstore';
 
 const ddb = new DynamoDBClient({ region: "us-east-2"});
 
 async function getTokenData (contractId, contractABI, tokenId, web3) {
     let contract = null;
     let owner = null;
-    let metauri = null;
-    let imageURL = null;
     let imageS3URL;
     let imageThumbS3URL;
-    let file;
-    let ipfsFolder;
+    let uri
+    let ipfsURL;
 
     try {
+        // Get info from blockchain
         contract = new web3.eth.Contract(contractABI,contractId);
         owner = await contract.methods.ownerOf(tokenId).call();
-        const uri = await contract.methods.tokenURI(tokenId).call();
-    
-        const baseLocation = await uri.replace(/[a-zA-Z:]+\/\//,'').replace(/[a-z0-9]+\.mypinata\.cloud\/ipfs\//,'');
-        const regex = /ipfs/g;
-        metauri = '';
-        if (uri.match(regex)) {
-            metauri = 'https://ipfs.io/ipfs/'+baseLocation;
-        } else {
-            metauri = uri;
-        }
+        uri = await contract.methods.tokenURI(tokenId).call();
+        
+        // Get info from S3
+        const url = new URL(uri);
+        const s3Key = 'metadata/'+contractId+'/'+url.host+url.pathname;
+        const params = { Bucket: bucketName, Key: s3Key };
 
-        // Get image URL from metadata
-        const response = await fetch(metauri);
-        if(response.ok) {
-            const jsonResponse = await response.json();
-            
-            if (metauri.match(regex)) {
-                imageURL = 'https://ipfs.io/ipfs/'+jsonResponse.image.replace(/[a-zA-Z:]+\/\//,'').replace(/[a-z0-9]+\.mypinata\.cloud\/ipfs\//,'');
-                file = imageURL.replace(/https:\/\/ipfs.io\/ipfs\//,'').replace(/[a-zA-Z0-9]+\//,'')
-                ipfsFolder = imageURL.replace(/https:\/\/ipfs.io\/ipfs\//,'').replace(/\/.*/,'');
-                imageS3URL = 'https://s3.us-east-2.amazonaws.com/com.multiworms.nftstore/images/'+contractId+'/'+imageURL.replace(/https:\/\/ipfs.io\/ipfs\//,'');
-                imageThumbS3URL = 'https://s3.us-east-2.amazonaws.com/com.multiworms.nftstore/images/'+contractId+'/'+ipfsFolder+'/thumbnails/'+file;
+        const data = await s3Client.send(new GetObjectCommand(params));
+        const nftjson = await data.Body.transformToString();
 
+        // Create URLs
+        const imageURL = new URL(JSON.parse(nftjson).image);
+        ipfsURL = 'https://ipfs.io/ipfs/'+imageURL.host+imageURL.pathname;
+        imageS3URL = 'https://s3.us-east-2.amazonaws.com/'+bucketName+'/images/'+contractId+'/'+imageURL.host+imageURL.pathname;
+        imageThumbS3URL = 'https://s3.us-east-2.amazonaws.com/'+bucketName+'/images/'+contractId+'/'+imageURL.host+'/thumbnails'+imageURL.pathname;
 
-            } else {
-                imageURL = jsonResponse.image;
-                imageS3URL = 'https://s3.us-east-2.amazonaws.com/com.multiworms.nftstore/images/'+contractId+'/'+imageURL.replace(/https:\/\/ipfs.io\/ipfs\//,'');
-            }
-        } else {
-            console.log(tokenId+' fetch failed. '+ metauri);
-        }
+    } catch (e) { 
+        console.log('Error: '+e); 
+    };
 
-    } catch (e) { console.log('Error: '+e); };
-    const result = await JSON.parse(`{ "contractId":"${contractId}", "tokenId":"${tokenId}", "owner":"${owner}", "uri":"${metauri}", "imageURL":"${imageURL}", "imageS3URL":"${imageS3URL}", "imageThumbS3URL":"${imageThumbS3URL}" }`);
+    const result = await JSON.parse(`{ "contractId":"${contractId}", "tokenId":"${tokenId}", "owner":"${owner}", "uri":"${uri}", "imageURL":"${ipfsURL}", "imageS3URL":"${imageS3URL}", "imageThumbS3URL":"${imageThumbS3URL}" }`);
+
     return result;
   }
   
@@ -100,7 +89,7 @@ async function putNFT (contractId, contractABI, tokenId, web3, dynamodb) {
 
         dynamodb.send(putItemCommand, function(err, data) {
             if (err) console.log(`${tokenId} Error: `+err, err.stack); // an error occurred
-            else if (tokenId % 100 == 0) {
+            else if (tokenId % 1 == 0) {
             console.log(`${tokenId}: Successful Put`)
         };           // successful response
 
@@ -110,16 +99,55 @@ async function putNFT (contractId, contractABI, tokenId, web3, dynamodb) {
 //putNFT(contractId,contractABI,1,web3, ddb);
 
 async function getNFTs (supply, indexId, contractId, contractABI, web3, ddb) {
-    const limit = pLimit(10);
+    const limit = pLimit(50);
     const input = [];
 
-    for (let i = 0; i < supply+indexId; i++) {
+    for (let i = 0; i < Number(supply); i++) {
         input[i] = new Promise((resolve, reject) => {
-            limit(() => putNFT(contractId, contractABI, i+indexId, web3, ddb));
+            limit(() => putNFT(contractId, contractABI, i+Number(indexId), web3, ddb));
         }); 
     }
 
-    const result = await Promise.all(input);
+    await Promise.all(input).catch((e) => console.log('Error: '+e));
 }
 
-getNFTs(3333, 0, contractId, contractABI, web3, ddb);
+async function getProject(contractId) {
+    let project = {};
+    let result;
+
+    const params = {
+        "TableName": "projects",
+        "ConsistentRead": true,
+        "ExpressionAttributeValues": {
+            ":ca" : { "S": contractId }
+        },
+        "ExpressionAttributeNames": {
+            "#ca": "contract_address"
+        },
+        "FilterExpression": "#ca = :ca"
+    };
+
+    const command = new ScanCommand(params);
+    const data = await ddb.send(command);
+
+    project = {};
+    project.contractId = data.Items[0].contract_address.S;
+    project.supply = data.Items[0].number_of_items.N;
+    project.index_number = data.Items[0].index_number.N;
+
+
+    return project;
+}
+
+async function getNFTsFromProjects (contractId, ddb) {
+    const input = [];
+    let response;
+
+    const project = await getProject(contractId);
+    response = await getNFTs(project.supply, project.index_number, project.contractId, contractABI, web3, ddb)
+
+}
+
+
+
+getNFTsFromProjects(contractId, ddb);

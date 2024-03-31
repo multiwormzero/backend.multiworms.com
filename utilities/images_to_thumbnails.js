@@ -1,5 +1,4 @@
 import { S3Client, ListObjectsCommand, GetObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
-import fs from 'fs';
 import sharp from "sharp";
 import path from 'path';
 

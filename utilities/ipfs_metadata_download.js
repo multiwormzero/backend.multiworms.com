@@ -18,9 +18,9 @@ const s3Client = new S3Client({ region: 'us-east-2' });
 
 const tokenURIABI = erc721ABI;
 
-const tokenContract = "0x4551C11B22FDd733A0328c62d6eF4e4C6496DadA";
-const mintSize = 3333;
-const firstTokenNumber = 0;
+const tokenContract = "0xd162D3fB9F9F6F59592C62676E1771b96dF5A01e";
+const mintSize = 5000;
+const firstTokenNumber = 1;
 const bucketName = 'com.multiworms.nftstore';
 const namespace = 'metadata';
 const requestArray = [];
@@ -90,7 +90,12 @@ async function getNFTMetadata(contractId, contractABI, tokenId, s3Bucket, s3Name
     const regex = /ipfs/g;
     let metaURL = '';
     if (url.match(regex)) {
-        metaURL = 'https://ipfs.io/ipfs/'+baseLocation;
+        if (url.match(/ipfs.io/) === null) {
+            metaURL = 'https://ipfs.io/ipfs/'+baseLocation;
+        } else {
+            metaURL = 'https://'+baseLocation;
+        }
+        
     } else {
         metaURL = url;
     }
@@ -138,7 +143,7 @@ async function getNFTMetadata(contractId, contractABI, tokenId, s3Bucket, s3Name
 
 
 async function getAllMetadata (tokenArray, s3Array) {
-    const limit = pLimit(100);
+    const limit = pLimit(50);
     const input = [];
 
     for (let i = 0; i < tokenArray.length; i++) {

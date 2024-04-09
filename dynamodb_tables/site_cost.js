@@ -8,7 +8,7 @@ const input = { // CreateTableInput
         AttributeType: "N", // required
     },
   ],
-  TableName: "site_const", // required
+  TableName: "site_cost", // required
   KeySchema: [ // KeySchema // required
     { // KeySchemaElement
       AttributeName: "month", // required
